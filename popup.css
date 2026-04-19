@@ -1,0 +1,290 @@
+/* RentScope popup — Slate Navy + Teal brand */
+
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+:root {
+  --accent:      #00C9A7;             /* brand teal */
+  --accent-dim:  rgba(0, 201, 167, 0.12);
+  --accent-glow: rgba(0, 201, 167, 0.25);
+  --green:       #30D158;             /* semantic: below FMR = good */
+  --green-dim:   rgba(48, 209, 88, 0.12);
+  --amber:       #FF9F0A;
+  --amber-dim:   rgba(255, 159, 10, 0.12);
+  --red:         #FF453A;
+  --red-dim:     rgba(255, 69, 58, 0.12);
+  --bg:          #0F172A;             /* slate-900 */
+  --surface:     #1E293B;             /* slate-800 */
+  --surface-2:   #334155;             /* slate-700 */
+  --text-1:      #F1F5F9;             /* slate-100 */
+  --text-2:      #94A3B8;             /* slate-400 */
+  --text-3:      #64748B;             /* slate-500 */
+  --border:      rgba(148, 163, 184, 0.15); /* slate-400 @ 15% */
+  --radius:      10px;
+}
+
+html, body {
+  width: 340px;
+  min-height: 200px;
+  background: var(--bg);
+  color: var(--text-1);
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  font-size: 13px;
+  line-height: 1.4;
+}
+
+.hidden { display: none !important; }
+
+/* ── Header ─────────────────────────────────────────────────────── */
+#header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 10px 14px 9px;
+  border-bottom: 1px solid var(--border);
+  background: var(--surface);
+}
+
+.header-brand { display: flex; align-items: center; gap: 7px; }
+.header-icon  { border-radius: 5px; }
+.header-title { font-size: 14px; font-weight: 700; color: var(--text-1); letter-spacing: -0.2px; }
+
+.header-badge {
+  font-size: 10px; color: var(--text-3);
+  background: var(--surface-2); padding: 2px 7px; border-radius: 10px;
+}
+
+/* ── Main ────────────────────────────────────────────────────────── */
+#main {
+  padding: 10px 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+/* ── Card base ───────────────────────────────────────────────────── */
+.card {
+  background: var(--surface);
+  border-radius: var(--radius);
+  border: 1px solid var(--border);
+  padding: 10px 12px;
+}
+
+/* ── Listing card ────────────────────────────────────────────────── */
+.listing-card { border-left: 3px solid var(--accent); }
+
+.listing-address {
+  font-size: 13px; font-weight: 600; color: var(--text-1);
+  line-height: 1.3; margin-bottom: 3px;
+}
+
+.listing-meta { font-size: 11px; color: var(--text-3); }
+.listing-meta .price { color: var(--accent); font-weight: 600; font-size: 13px; }
+.listing-meta .sep   { margin: 0 4px; }
+
+/* ── Diff badge ──────────────────────────────────────────────────── */
+.diff-badge {
+  display: flex;
+  align-items: baseline;
+  flex-wrap: wrap;
+  gap: 4px;
+  padding: 8px 12px;
+  border-radius: var(--radius);
+  font-size: 15px;
+  font-weight: 700;
+}
+.diff-badge.green { background: var(--green-dim);  color: var(--green);  }
+.diff-badge.amber { background: var(--amber-dim);  color: var(--amber);  }
+.diff-badge.red   { background: var(--red-dim);    color: var(--red);    }
+.diff-detail { font-size: 11px; font-weight: 400; color: var(--text-3); }
+
+/* ── Fraud signal ────────────────────────────────────────────────── */
+.fraud-signal {
+  padding: 7px 12px;
+  border-radius: var(--radius);
+  font-size: 12px;
+  background: var(--red-dim);
+  color: var(--red);
+}
+
+/* ── FMR card ────────────────────────────────────────────────────── */
+.fmr-card-title {
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--text-3);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  margin-bottom: 8px;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  cursor: pointer;
+  user-select: none;
+}
+.fmr-card-title:hover { color: var(--text-2); }
+.fmr-card-title.no-toggle { cursor: default; }
+.fmr-card-title.no-toggle:hover { color: var(--text-3); }
+
+.fmr-toggle-arrow {
+  margin-left: auto;
+  font-size: 11px;
+  color: var(--text-3);
+  transition: transform 0.18s ease;
+  display: inline-block;
+  line-height: 1;
+}
+.fmr-toggle-arrow.collapsed { transform: rotate(-90deg); }
+
+.fmr-collapse-wrap {
+  overflow: hidden;
+  max-height: 150px;
+  transition: max-height 0.2s ease;
+}
+.fmr-collapse-wrap.collapsed { max-height: 0; }
+
+.level-tag {
+  font-size: 10px;
+  font-weight: 400;
+  color: var(--text-3);
+  background: var(--surface-2);
+  padding: 1px 5px;
+  border-radius: 4px;
+  text-transform: none;
+  letter-spacing: 0;
+}
+
+.fmr-table {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 3px 6px;
+}
+
+.fmr-row {
+  display: flex;
+  align-items: baseline;
+  gap: 5px;
+  font-size: 12px;
+  padding: 2px 6px;
+  border-radius: 5px;
+}
+
+.fmr-br    { color: var(--text-3); min-width: 40px; }
+.fmr-price { color: var(--text-2); }
+
+.fmr-row.active            { background: var(--surface-2); }
+.fmr-row.active .fmr-br    { color: var(--text-1); font-weight: 600; }
+.fmr-row.active .fmr-price { color: var(--accent); font-weight: 600; font-size: 13px; }
+
+/* ── HCV card ────────────────────────────────────────────────────── */
+.hcv-card { border-left: 3px solid var(--surface-2); }
+.hcv-card.eligible { border-left-color: var(--green); }
+.hcv-card.over     { border-left-color: var(--amber);  }
+.hcv-card.info     { border-left-color: var(--accent); }
+
+.hcv-status   { font-size: 13px; font-weight: 600; margin-bottom: 3px; }
+.hcv-cap-line { font-size: 11px; color: var(--text-3); margin-bottom: 2px; }
+.hcv-note     { font-size: 10px; color: var(--text-3); font-style: italic; }
+
+/* ── ZIP Lookup ──────────────────────────────────────────────────── */
+.lookup-card { }
+
+.lookup-title {
+  font-size: 11px; font-weight: 600; color: var(--text-3);
+  text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 8px;
+}
+
+.lookup-row { display: flex; gap: 6px; align-items: center; }
+
+.zip-input {
+  flex: 1;
+  background: var(--surface-2); border: 1px solid var(--border);
+  border-radius: 7px; padding: 6px 10px;
+  color: var(--text-1); font-size: 14px; font-weight: 600;
+  outline: none; transition: border-color 0.15s;
+  letter-spacing: 1px;
+}
+.zip-input::placeholder { color: var(--text-3); font-weight: 400; letter-spacing: 0; }
+.zip-input:focus { border-color: var(--accent); }
+
+.zip-btn {
+  background: var(--accent); color: #000;
+  border: none; border-radius: 7px;
+  padding: 6px 14px; font-size: 13px; font-weight: 600;
+  cursor: pointer; transition: opacity 0.15s; flex-shrink: 0;
+}
+.zip-btn:hover   { opacity: 0.85; }
+.zip-btn:active  { opacity: 0.7; }
+.zip-btn:disabled { opacity: 0.4; cursor: default; }
+
+.lookup-result {
+  margin-top: 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.lookup-area {
+  font-size: 11px; color: var(--text-3); margin-bottom: 4px;
+  display: flex; align-items: center; gap: 6px;
+}
+
+.lookup-fmr-table {
+  display: flex; flex-wrap: wrap; gap: 4px 10px;
+}
+
+.fmr-hcv { font-size: 10px; color: var(--text-3); }
+
+/* Building per-unit plan diff colors in popup FMR table */
+.plan-diff-green { font-size: 11px; font-weight: 600; color: var(--green); }
+.plan-diff-amber { font-size: 11px; font-weight: 600; color: var(--amber); }
+.plan-diff-red   { font-size: 11px; font-weight: 600; color: var(--red); }
+
+.lookup-error {
+  font-size: 12px; color: var(--text-3); padding: 6px 0;
+}
+
+/* ── State cards ─────────────────────────────────────────────────── */
+.state-card {
+  display: flex; flex-direction: column;
+  align-items: center; padding: 24px 16px;
+  gap: 8px; text-align: center;
+}
+.state-icon { font-size: 28px; line-height: 1; }
+.state-msg  { font-size: 13px; font-weight: 500; color: var(--text-2); }
+.state-sub  { font-size: 11px; color: var(--text-3); max-width: 240px; }
+
+.spinner {
+  width: 22px; height: 22px;
+  border: 2px solid var(--surface-2); border-top-color: var(--accent);
+  border-radius: 50%; animation: spin 0.7s linear infinite;
+}
+@keyframes spin { to { transform: rotate(360deg); } }
+
+/* ── Google Lens verification ────────────────────────────────────── */
+.lens-wrap { /* inherits gap from #main flex */ }
+
+.lens-link {
+  display: flex; align-items: center; justify-content: center; gap: 7px;
+  width: 100%; padding: 9px 12px;
+  background: var(--accent); color: #fff;
+  font-size: 13px; font-weight: 600; border-radius: var(--radius);
+  text-decoration: none; transition: opacity 0.15s;
+}
+.lens-link:hover  { opacity: 0.85; }
+.lens-link:active { opacity: 0.70; }
+
+/* ── Footer ──────────────────────────────────────────────────────── */
+#footer {
+  border-top: 1px solid var(--border);
+  padding: 7px 14px;
+  background: var(--surface);
+  display: flex; justify-content: center;
+}
+
+.footer-brand {
+  display: flex; flex-direction: column; align-items: center;
+  gap: 2px; padding: 5px 20px; border-radius: 6px;
+  text-decoration: none; transition: background 0.14s;
+}
+.footer-brand:hover { background: var(--accent-dim); }
+.footer-brand-main { font-size: 13px; font-weight: 600; color: var(--text-1); }
+.footer-brand-sub  { font-size: 10px; color: var(--text-3); }

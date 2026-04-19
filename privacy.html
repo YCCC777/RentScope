@@ -1,0 +1,80 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Privacy Policy — RentScope</title>
+  <link rel="icon" href="imag/icon32.png" type="image/png">
+  <link rel="stylesheet" href="about.css">
+</head>
+<body>
+  <div id="page">
+
+    <section id="hero" style="padding-bottom: 24px;">
+      <h1 class="hero-title">Privacy Policy</h1>
+      <p class="hero-tagline">RentScope · Last updated April 2026</p>
+    </section>
+
+    <section class="content-section">
+      <h2 class="section-heading">Summary</h2>
+      <div class="data-block">
+        <p class="data-block-body"><strong>RentScope collects no personal data and sends nothing to any server.</strong> All processing happens entirely within your browser. There are no analytics, no tracking pixels, no third-party SDKs, and no network requests to any external service from this extension.</p>
+      </div>
+    </section>
+
+    <section class="content-section">
+      <h2 class="section-heading">What we access</h2>
+      <div class="data-block">
+        <div class="data-block-title">Page content (zillow.com only)</div>
+        <p class="data-block-body">RentScope reads the DOM of Zillow listing pages to extract rental information (price, bedroom count, ZIP code). This data is used locally to look up HUD FMR data and display the overlay. It is never transmitted off your device.</p>
+      </div>
+      <div class="data-block">
+        <div class="data-block-title">Browser local &amp; session storage</div>
+        <p class="data-block-body">RentScope stores the current listing data in <code>chrome.storage.session</code> (cleared when you close the browser) so the popup can display it. No data is stored in <code>chrome.storage.sync</code> or sent to any cloud service.</p>
+      </div>
+      <div class="data-block">
+        <div class="data-block-title">Bundled HUD data</div>
+        <p class="data-block-body">The FMR data is bundled inside the extension package (<code>fmr_index.json</code>, ~2–3 MB). It is read locally — no network request is made to HUD or any other server at runtime.</p>
+      </div>
+    </section>
+
+    <section class="content-section">
+      <h2 class="section-heading">What we do NOT do</h2>
+      <ul class="usage-list" style="counter-reset: none; list-style: disc; padding-left: 0;">
+        <li style="counter-increment: none;">No data is collected, stored remotely, or shared</li>
+        <li style="counter-increment: none;">No browsing history or search queries are tracked</li>
+        <li style="counter-increment: none;">No analytics or crash reporting services are used</li>
+        <li style="counter-increment: none;">No user accounts or sign-in required</li>
+        <li style="counter-increment: none;">No ads, no third-party scripts, no remote code execution</li>
+      </ul>
+    </section>
+
+    <section class="content-section">
+      <h2 class="section-heading">Permissions explained</h2>
+      <div class="data-block">
+        <div class="data-block-title">storage</div>
+        <p class="data-block-body">Used for <code>chrome.storage.session</code> to pass the current listing data between the content script and popup within the same browser session. Data is cleared when the browser is closed.</p>
+      </div>
+      <div class="data-block">
+        <div class="data-block-title">tabs</div>
+        <p class="data-block-body">Used to detect whether the active tab is a Zillow listing page, so the popup can show the right content. The extension does not read tab content beyond what the content script on zillow.com already sees.</p>
+      </div>
+      <div class="data-block">
+        <div class="data-block-title">Host permission: zillow.com</div>
+        <p class="data-block-body">Required to inject the content script on Zillow listing pages. The extension only runs on <code>zillow.com/apartments/*</code> and <code>zillow.com/homedetails/*</code>.</p>
+      </div>
+    </section>
+
+    <section class="content-section">
+      <h2 class="section-heading">Contact</h2>
+      <p class="about-text">For privacy questions or concerns, contact <a class="about-link" href="mailto:risachou7@gmail.com">risachou7@gmail.com</a>.</p>
+    </section>
+
+    <footer id="about-footer">
+      <button class="close-btn" onclick="window.close()">Close</button>
+      <span class="footer-copy">RentScope v1.0.0 · by Risa Studio</span>
+    </footer>
+
+  </div>
+</body>
+</html>

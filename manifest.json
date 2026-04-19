@@ -1,0 +1,54 @@
+{
+  "manifest_version": 3,
+  "name": "RentScope",
+  "version": "1.2.0",
+  "description": "Is your rent fair? Instantly compare any Zillow or Apartments.com listing against HUD Fair Market Rents and check Section 8 HCV eligibility.",
+  "permissions": [
+    "storage",
+    "tabs"
+  ],
+  "host_permissions": [
+    "https://www.zillow.com/*",
+    "https://www.apartments.com/*"
+  ],
+  "background": {
+    "service_worker": "background.js"
+  },
+  "content_scripts": [
+    {
+      "matches": [
+        "https://www.zillow.com/*"
+      ],
+      "js": ["extractors/zillow.js", "content.js"],
+      "run_at": "document_idle"
+    },
+    {
+      "matches": [
+        "https://www.apartments.com/*"
+      ],
+      "js": ["extractors/apartments.js", "content.js"],
+      "run_at": "document_idle"
+    }
+  ],
+  "action": {
+    "default_popup": "popup.html",
+    "default_icon": {
+      "16":  "imag/icon16.png",
+      "32":  "imag/icon32.png",
+      "48":  "imag/icon48.png",
+      "128": "imag/icon128.png"
+    }
+  },
+  "icons": {
+    "16":  "imag/icon16.png",
+    "32":  "imag/icon32.png",
+    "48":  "imag/icon48.png",
+    "128": "imag/icon128.png"
+  },
+  "web_accessible_resources": [
+    {
+      "resources": ["data/fmr_index.json", "about.html", "about.css", "privacy.html", "imag/icon32.png"],
+      "matches": ["<all_urls>"]
+    }
+  ]
+}

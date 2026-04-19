@@ -1,0 +1,102 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>RentScope</title>
+  <link rel="stylesheet" href="popup.css">
+</head>
+<body>
+
+<!-- Header -->
+<header id="header">
+  <div class="header-brand">
+    <img src="imag/icon32.png" width="20" height="20" alt="" class="header-icon">
+    <span class="header-title">RentScope</span>
+  </div>
+  <span class="header-badge" id="header-badge">HUD FMR · FY2025</span>
+</header>
+
+<!-- Main -->
+<main id="main">
+
+  <!-- Section 1: Current listing (shown when on a Zillow listing page) -->
+  <section id="current-section" class="hidden">
+
+    <div id="listing-card" class="card listing-card">
+      <div id="listing-address" class="listing-address"></div>
+      <div id="listing-meta" class="listing-meta"></div>
+    </div>
+
+    <!-- Diff badge -->
+    <div id="diff-badge" class="diff-badge hidden"></div>
+
+    <!-- Fraud signal -->
+    <div id="fraud-signal" class="fraud-signal hidden"></div>
+
+    <!-- Google Lens verification (shown when listing has a photo) -->
+    <div id="lens-wrap" class="lens-wrap hidden">
+      <a id="lens-link" class="lens-link" href="#" target="_blank" rel="noopener">
+        🔍 Verify photos with Google Lens
+      </a>
+    </div>
+
+    <!-- FMR table -->
+    <div class="card fmr-card">
+      <div class="fmr-card-title" id="fmr-toggle-header">
+        Fair Market Rents
+        <span id="fmr-area-tag" class="level-tag"></span>
+        <span class="level-tag">gov't benchmark</span>
+        <span id="fmr-toggle-arrow" class="fmr-toggle-arrow">▾</span>
+      </div>
+      <div id="fmr-collapse-wrap" class="fmr-collapse-wrap">
+        <div id="fmr-table" class="fmr-table"></div>
+      </div>
+    </div>
+
+    <!-- HCV status -->
+    <div id="hcv-card" class="card hcv-card hidden">
+      <div id="hcv-status" class="hcv-status"></div>
+      <div id="hcv-cap-line" class="hcv-cap-line"></div>
+      <div class="hcv-note">Actual eligibility depends on your local housing authority</div>
+    </div>
+
+  </section>
+
+  <!-- Section 2: ZIP Lookup (always visible) -->
+  <section id="lookup-section" class="card lookup-card">
+    <div class="lookup-title">ZIP Code Lookup</div>
+    <div class="lookup-row">
+      <input id="zip-input" class="zip-input" type="text" maxlength="5"
+             placeholder="e.g. 10001" inputmode="numeric" pattern="[0-9]*">
+      <button id="zip-btn" class="zip-btn">Look up</button>
+    </div>
+    <div id="lookup-result" class="lookup-result hidden"></div>
+  </section>
+
+  <!-- State: not on listing page -->
+  <section id="state-no-page" class="state-card hidden">
+    <div class="state-icon">🏠</div>
+    <div class="state-msg">Open a rental listing</div>
+    <div class="state-sub">Go to Zillow or Apartments.com and open a rental to see FMR data here</div>
+  </section>
+
+  <!-- State: loading -->
+  <section id="state-loading" class="state-card hidden">
+    <div class="spinner"></div>
+    <div class="state-msg">Loading FMR data…</div>
+  </section>
+
+</main>
+
+<!-- Footer -->
+<footer id="footer">
+  <a id="footer-link" href="#" class="footer-brand" title="About RentScope">
+    <span class="footer-brand-main">🏠 RentScope</span>
+    <span class="footer-brand-sub">About · Privacy · HUD Data</span>
+  </a>
+</footer>
+
+<script src="popup.js"></script>
+</body>
+</html>
