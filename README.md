@@ -88,7 +88,7 @@ RentScope is completely free. If it helps you find a fair place to live, a small
 
 ## About
 
-RentScope is built by [Risa Studio](https://yccc777.github.io/risa-studio/), the same team behind [StayScope](https://chromewebstore.google.com/detail/stayscope/khmhjiafkapmhakmpfcgmgikkffejnpm), [CarScope](https://chromewebstore.google.com/detail/carscope/bgngcnkdeegfjgfblhdkiclomcneiaoj), and JobScope.
+RentScope is built by [Risa Studio](https://yccc777.github.io/risa-studio/), the same team behind [StayScope](https://chromewebstore.google.com/detail/stayscope/khmhjiafkapmhakmpfcgmgikkffejnpm), [CarScope](https://chromewebstore.google.com/detail/carscope/bgngcnkdeegfjgfblhdkiclomcneiaoj), and [JobScope](https://chromewebstore.google.com/detail/jobscope/lnkcahmoclihapgokdjakfjjnlhcmgfe).
 
 > Zero data collection · Local-first · No API keys
 
