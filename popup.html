@@ -81,6 +81,13 @@
     <div class="state-sub">Go to Zillow or Apartments.com and open a rental to see FMR data here</div>
   </section>
 
+  <!-- State: on listing but no data extracted yet -->
+  <section id="state-no-data" class="state-card hidden">
+    <div class="state-icon">🔍</div>
+    <div class="state-msg">No data found</div>
+    <div class="state-sub">Try refreshing the page (F5) — some navigation paths require a full page load for the overlay to appear.</div>
+  </section>
+
   <!-- State: loading -->
   <section id="state-loading" class="state-card hidden">
     <div class="spinner"></div>
@@ -91,10 +98,17 @@
 
 <!-- Footer -->
 <footer id="footer">
-  <a id="footer-link" href="#" class="footer-brand" title="About RentScope">
-    <span class="footer-brand-main">🏠 RentScope</span>
-    <span class="footer-brand-sub">About · Privacy · HUD Data</span>
-  </a>
+  <div class="footer-brand-row">
+    <img src="imag/icon16.png" width="14" height="14" alt="" class="footer-icon">
+    <span class="footer-name">RentScope</span>
+  </div>
+  <nav class="footer-nav">
+    <a id="footer-about" href="#" class="footer-nav-link">About</a>
+    <span class="footer-dot">·</span>
+    <a id="footer-privacy" href="#" class="footer-nav-link">Privacy</a>
+    <span class="footer-dot">·</span>
+    <a id="footer-hud" href="https://www.huduser.gov/portal/datasets/fmr.html" target="_blank" rel="noopener" class="footer-nav-link">HUD Data</a>
+  </nav>
 </footer>
 
 <script src="popup.js"></script>

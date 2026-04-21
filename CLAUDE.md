@@ -237,7 +237,7 @@ ZIP Lookup: popup fetches `chrome.runtime.getURL('data/fmr_index.json')` directl
 - ✅ SPA navigation from search page fixed (2026-04-14) — manifest broadened to `https://www.zillow.com/*`; `readPageVar()` bridges isolated world → page JS
 - ✅ UI retheme (2026-04-13) — Slate Navy bg, teal brand #00C9A7, green semantic #30D158
 - ✅ Google Lens photo verification — overlay (footer + fraud signal) + popup button
-- 🔲 Icons — placeholder from JobScope; RentScope logo being generated (teal theme)
+- ✅ Icons — RentScope logo done (teal theme): icon16/32/48/128.png + RentScope_logo.png + Risa_Studio_logo.png
 - 🔲 About / Privacy pages (Phase 1 last item, before CWS)
 - 🔲 CWS submission prep (暫不上架，打磨中)
 
@@ -258,6 +258,27 @@ ZIP Lookup: popup fetches `chrome.runtime.getURL('data/fmr_index.json')` directl
   1. `query.slug` check (before Fallback 2a): static tag's `query.slug` contains path segments of the F5 page → if `urlId` in slug → fresh; if slug exists but no match → stale
   2. Fallback 2a fix: when `urlHouseNum === null` (name-slug URL), houseNum/zip match now falls through instead of returning `true` — prevents false-positive "fresh" when stale gdp matches stale static tag
   NOTE: Zillow's `window.__NEXT_DATA__` NEVER contains `asPath` field — do not attempt asPath-based freshness checks
+- Apartments.com JSON-LD `@type` array (2026-04-20): `['Product', 'RealEstateListing']` → `String(array)` = `'Product,RealEstateListing'` → `includes()` check fails → entire JSON-LD skipped. Fix: `typeList()`/`isType()` helpers normalize string-or-array to lowercase string array.
+- Apartments.com ZIP in `mainEntity.address.postalCode` (2026-04-20): single-unit pages store ZIP under `b.mainEntity.address` not `b.address` → added `b.address || b.mainEntity?.address` check.
+- Apartments.com beds only in description free text (2026-04-20): `"4 SPACIOUS BEDROOMS"` not in `numberOfBedrooms` → added `bedsFromText()` helper with flexible regex `/\b(\d+)\s+(?:\w+\s+){0,2}bedrooms?\b/i`.
+- Apartments.com multi-unit building no beds in JSON-LD (2026-04-20): price+zip but `beds=null` → `beds != null` check skipped → no result. Fix: `buildingCandidate` fallback returns `isBuilding: true, beds: 0` after unit loop.
+- Apartments.com floor plans (2026-04-20): `extractAptBuildingPlans()` reads `.pricingGridItem` DOM rows → `priceBedRangeInfo` (bed label: "Studio"/"One Bedroom"/"Two Bedroom") + `rentLabel` ($X–$Y range) → `buildingPlans[]` array. `aptParseBedLabel()` handles word numbers. Deduplicated by beds count (grid[1-3] and [4-6] are duplicate pairs).
+- Apartments.com meta price (2026-04-20): `"starting at $852"` and `"from $4,500"` format (no `/mo`) → extended regex `/\b(?:from|starting\s+at)\s+\$([\d,]+)/i`.
+- Building overlay/popup showing "Studio" for `isBuilding: true, beds: 0` (2026-04-20): FMR table highlighted Studio cell, HCV section used Studio FMR. Fix: `active = !isBuilding && (n === brCapped)` in overlay; skip HCV when `isBuilding`. Popup meta line: `isBuilding ? 'Building' : brLabel`. FMR table: pass `activeBr = -1` when isBuilding.
+- Building plan rows truncated in popup (2026-04-20): `.fmr-table` is `1fr 1fr` 2-column grid → two plan rows placed side-by-side → right column truncated. Fix: add `building-plans-mode` class → `grid-template-columns: 1fr` single column. `.plan-row` overlay grid: `46px → auto` for diff% column.
+- Cross-site popup contamination (2026-04-20): opening Zillow + Apartments.com tabs simultaneously → whichever ran last overwrites shared `rent_current` key → popup on one site shows other site's data. Fix: hostname-scoped storage keys — `RENT_KEY = 'rent_zillow'` or `'rent_apartments'` in content.js; popup derives key via `rentKeyForUrl(tabUrl)` before `chrome.storage.local.get`.
+- `/apartments/` SPA navigation (building→building) fails (2026-04-20): Static `__NEXT_DATA__` DOM element is never updated on SPA nav — only the JS variable `window.__NEXT_DATA__` is. Isolated world can't read JS variables (MV3), and inline script injection was blocked by Zillow's CSP. Fix: `zillow_bridge.js` MAIN world script intercepts `rs-sync-nd` event and writes live `window.__NEXT_DATA__` to `data-rs-nd` DOM attribute; `readPageVar()` dispatches that event and reads the attribute. Also updated `isBuildingGdpFresh()` to check live ND's `query.slug` first (authoritative) before falling back to static tag slug.
+- Flow B stale-gdp path — wrong overlay for buildings outside compBuildings (2026-04-20):
+  - `extractFromCompBuildings` now reads from static `__NEXT_DATA__` script tag as fallback when `readPageVar` returns null (CSP-blocked). Fixes buildings within ~8 nearby comps.
+  - DOM body text fallback (`domFallback`) **removed** from stale-gdp path: panel-mode body.innerText contains previous panel's content + all search tiles — scanning it yields wrong price/beds (matched stale panel's `$16,000/mo 4 bds` instead of current building). Stale ZIP also incorrect for buildings in different neighborhoods. Wrong overlay is worse than no overlay.
+  - Popup: added `state-no-data` state (shown when on listing page but no data after 1.5s). Displays "No data found — Try refreshing (F5)" hint. `state-no-page` reserved for non-listing pages only.
+
+### Known limitations (by design — not fixable without major rework)
+
+- **Bookmark → search (SPA back) → click building**: no overlay, popup shows F5 hint.
+  - Root cause (confirmed 2026-04-21): after SPA nav from a building to a search page, Zillow's search page has NO `listResults` in `window.__NEXT_DATA__` (Apollo loads results client-side). When user then clicks a building, `window.__NEXT_DATA__` is **never updated** with the new building's `gdp.building` in panel mode — it permanently retains the prior bookmarked building's data (confirmed by P4 debug: `bmuHdpUrl` unchanged after 2s). `isBuildingGdpFresh()` correctly returns false (data IS stale). F5 on the building page always works.
+  - Cannot fix without intercepting Apollo GraphQL cache (`window.__APOLLO_CLIENT__`) — complex and fragile.
+  - Note: `_preNavBmuHdpUrl` is **never null** in this flow; the search page always retains the prior building's `gdp.building` in `window.__NEXT_DATA__` even after SPA nav to search.
 
 ### Phase 2 — Enrichment (priority order)
 - ✅ Apartments.com support (`extractors/apartments.js`) — 4-layer fallback; manifest v1.1.0
@@ -313,8 +334,10 @@ console.log('floorPlans:', b?.floorPlans?.map(p => ({
 console.log('bestMatchedUnit:', b?.bestMatchedUnit);
 
 // 4. Check what content.js extracted and stored
-chrome.storage.local.get('rent_current', r => console.log(r.rent_current));
-// (run from DevTools → Application → Storage or inject via extension popup console)
+// Keys are hostname-scoped: 'rent_zillow' or 'rent_apartments'
+chrome.storage.local.get('rent_zillow', r => console.log(r.rent_zillow));
+chrome.storage.local.get('rent_apartments', r => console.log(r.rent_apartments));
+// (run from background service worker DevTools: chrome://extensions → Service Worker)
 ```
 
 ### Key facts confirmed (2026-04-15)
@@ -337,7 +360,19 @@ chrome.storage.local.get('rent_current', r => console.log(r.rent_current));
 - SPA navigation: MutationObserver on Zillow (same pattern as JobScope)
 - For-sale vs for-rent detection: check `homeStatus` in `__NEXT_DATA__` + presence of `/mo` in price
 - Zillow migrated from Redux to Apollo GraphQL (confirmed 2026-04-14): `window.__APOLLO_CLIENT__` present, no Redux globals. Apollo cache has minimal data during SPA nav; page JS `window.__NEXT_DATA__` still the primary source
-- `readPageVar(varPath)` in zillow.js: injects `<script>` to copy page window variable to `data-rentscope-tmp` attribute, reads+removes it. Bridges MV3 isolated world limitation. May fail if page has strict inline-script CSP (falls back gracefully to script tag parse)
+- `readPageVar(varPath)` in zillow.js: dispatches `rs-sync-nd` CustomEvent → `zillow_bridge.js` (MAIN world) writes a slim copy of `window.__NEXT_DATA__` to `data-rs-nd` DOM attribute synchronously → isolated world reads back the attribute. DOM events are shared between worlds so `dispatchEvent` is synchronous and the attribute is populated before the next line runs. Previously used inline-script injection which was blocked by Zillow's CSP.
+- `zillow_bridge.js`: MAIN world content script (`"world": "MAIN"`, `run_at: "document_start"`). Serializes `query`, `gdp.building`, and trimmed `listResults` from `window.__NEXT_DATA__` to `data-rs-nd` attribute on demand and proactively after SPA nav (T=0 and T=500ms via pushState intercept). Fixes `/apartments/` SPA nav: static tag was stale but live `window.__NEXT_DATA__` had fresh `gdp.building`.
 - `window.__NEXT_DATA__` NEVER contains `asPath` field on Zillow (confirmed across multiple debug sessions) — do not use asPath for freshness detection
 - `window.__NEXT_DATA__.query.slug` (static script tag): populated by Next.js with path segments of the F5 page URL. For `/apartments/area/building/5XjSGZ/`, slug = `['area', 'building', '5XjSGZ']`. Absent on search-page F5 (slug = undefined or []). Use this as primary freshness signal in `isBuildingGdpFresh()`
 - `gdp.building` Redux state persists across SPA nav — NOT cleared when navigating to a search page. This is the root cause of bookmark-nav stale data bugs
+- Zillow body text beds format: `"4 bds4.5 ba"` — beds and bath count are concatenated with no space. `\b` fails between `s` and `4`; use `(?![a-zA-Z])` in beds regex instead
+- panel mode `document.body.innerText`: contains previous panel's stale content + all search result tiles + current panel content. Tile price format uses `$X+` (no `/mo`); panel format uses `$X/mo`. Do NOT scan full body text for price/beds in stale-gdp path — unreliable. Scanning only the section after the first `$X/mo` still fails because previous panel's `$X/mo` may appear before current panel's.
+- stale-gdp path coverage: buildings in `comps.compBuildings` (~8 nearby) → full overlay via borrowed stale ZIP. Buildings outside compBuildings during SPA nav → no overlay; popup shows F5 hint. F5 always works (static tag has fresh data).
+- **Storage keys are hostname-scoped**: content.js uses `RENT_KEY = 'rent_zillow'` or `'rent_apartments'` (not `'rent_current'`). Popup derives key via `rentKeyForUrl(tabUrl)`. This prevents cross-site contamination when both sites are open simultaneously.
+- **Zillow panel mode `window.__NEXT_DATA__` never updates**: confirmed 2026-04-21. When a building opens as a panel via SPA nav (from search), `gdp.building` in `window.__NEXT_DATA__` stays as the prior page's building data permanently. Zillow fetches building data via Apollo GraphQL into `window.__APOLLO_CLIENT__` cache, which is NOT exposed via any accessible JS variable. This is the root cause of the bookmark→search→click known limitation.
+- **Zillow SPA search page `listResults` always null**: after SPA nav back to search (e.g., browser Back from a building), `window.__NEXT_DATA__.searchPageState.cat1.searchResults.listResults` is always null. Zillow loads search results via Apollo client-side, not in `__NEXT_DATA__`. Only F5 on search page produces listResults in `__NEXT_DATA__` (SSR).
+- **`_preNavBmuHdpUrl` is never null in practice**: Zillow's search page always retains `gdp.building` from the most recently viewed building in `window.__NEXT_DATA__`, even after SPA nav to search. So `__rsSnapshotGdp()` at departure from search always captures a non-null bmuHdpUrl. Do not rely on `_preNavBmuHdpUrl === null` as a signal that we came from a non-building page.
+- **Apartments.com `__NEXT_DATA__`**: always empty (`pageProps: {}`). All extraction is L1 JSON-LD → L2 meta → L3 DOM. No SPA nav (each property page is a full load).
+- **Apartments.com JSON-LD structure** (confirmed 2026-04-20): outer item `@type: ['Product', 'RealEstateListing']` carries `offers.price` (or `offers.lowPrice`) and `address.postalCode` or `mainEntity.address.postalCode`. Beds only in `description` free text for single units (e.g. `"4 SPACIOUS BEDROOMS"`). Multi-unit buildings have no beds in JSON-LD at all → `buildingCandidate` fallback → `isBuilding: true`.
+- **Apartments.com floor plan DOM** (confirmed 2026-04-20): `.pricingGridItem` elements (class `pricingGridItem multiFamily v3 UnitLevel_var2`). Child selectors: `[class*="priceBedRange"]` → bed label ("Studio", "One Bedroom", "Two Bedroom"); `[class*="rentLabel"]` → price range ("$852 – $1,704"). Grid items are duplicated (indices 1-3 = 4-6); deduplicate by beds count. `aptParseBedLabel()` handles word numbers.
+- **Apartments.com `isBuilding` rendering**: when `isBuilding: true` and no `buildingPlans`, overlay shows FMR table (no highlight) + "Starting from $X/mo · multiple unit types". With `buildingPlans`, shows per-unit table (Studio/1BR/2BR rows). Popup: meta line shows "Building", FMR table activeBr = -1 (no highlight), HCV section hidden.

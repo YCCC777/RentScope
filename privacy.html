@@ -25,12 +25,12 @@
     <section class="content-section">
       <h2 class="section-heading">What we access</h2>
       <div class="data-block">
-        <div class="data-block-title">Page content (zillow.com only)</div>
-        <p class="data-block-body">RentScope reads the DOM of Zillow listing pages to extract rental information (price, bedroom count, ZIP code). This data is used locally to look up HUD FMR data and display the overlay. It is never transmitted off your device.</p>
+        <div class="data-block-title">Page content (zillow.com and apartments.com)</div>
+        <p class="data-block-body">RentScope reads the DOM of Zillow and Apartments.com listing pages to extract rental information (price, bedroom count, ZIP code). This data is used locally to look up HUD FMR data and display the overlay. It is never transmitted off your device.</p>
       </div>
       <div class="data-block">
-        <div class="data-block-title">Browser local &amp; session storage</div>
-        <p class="data-block-body">RentScope stores the current listing data in <code>chrome.storage.session</code> (cleared when you close the browser) so the popup can display it. No data is stored in <code>chrome.storage.sync</code> or sent to any cloud service.</p>
+        <div class="data-block-title">Browser local storage</div>
+        <p class="data-block-body">RentScope stores the current listing data in <code>chrome.storage.local</code> so the popup can display it. Data is keyed per site (<code>rent_zillow</code> / <code>rent_apartments</code>) and overwritten on each new listing. No data is stored in <code>chrome.storage.sync</code> or sent to any cloud service.</p>
       </div>
       <div class="data-block">
         <div class="data-block-title">Bundled HUD data</div>
@@ -53,15 +53,15 @@
       <h2 class="section-heading">Permissions explained</h2>
       <div class="data-block">
         <div class="data-block-title">storage</div>
-        <p class="data-block-body">Used for <code>chrome.storage.session</code> to pass the current listing data between the content script and popup within the same browser session. Data is cleared when the browser is closed.</p>
+        <p class="data-block-body">Used for <code>chrome.storage.local</code> to pass the current listing data between the content script and the popup. Data is site-scoped and overwritten on each navigation. No personal data is ever stored.</p>
       </div>
       <div class="data-block">
         <div class="data-block-title">tabs</div>
-        <p class="data-block-body">Used to detect whether the active tab is a Zillow listing page, so the popup can show the right content. The extension does not read tab content beyond what the content script on zillow.com already sees.</p>
+        <p class="data-block-body">Used to detect whether the active tab is a Zillow or Apartments.com listing page, so the popup can show the correct data for the current site. The extension does not read tab URLs beyond checking the hostname and path.</p>
       </div>
       <div class="data-block">
-        <div class="data-block-title">Host permission: zillow.com</div>
-        <p class="data-block-body">Required to inject the content script on Zillow listing pages. The extension only runs on <code>zillow.com/apartments/*</code> and <code>zillow.com/homedetails/*</code>.</p>
+        <div class="data-block-title">Host permissions: zillow.com, apartments.com</div>
+        <p class="data-block-body">Required to inject the content script and track SPA navigation. Zillow is a single-page app — the extension must be present on search pages to detect when you navigate into a listing. No data is read or collected on non-listing pages.</p>
       </div>
     </section>
 
@@ -72,7 +72,7 @@
 
     <footer id="about-footer">
       <button class="close-btn" onclick="window.close()">Close</button>
-      <span class="footer-copy">RentScope v1.0.0 · by Risa Studio</span>
+      <span class="footer-copy">RentScope v1.2.0 · by Risa Studio</span>
     </footer>
 
   </div>

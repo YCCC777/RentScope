@@ -17,24 +17,27 @@
 
   // ── Section 1: Current listing ─────────────────────────────────────────────
 
+  function rentKeyForUrl(url) {
+    if (url.includes('zillow.com'))     return 'rent_zillow';
+    if (url.includes('apartments.com')) return 'rent_apartments';
+    return 'rent_current';
+  }
+
   function loadCurrentListing() {
-    chrome.storage.local.get('rent_current', (result) => {
-      const data = result['rent_current'];
+    chrome.tabs.query({ active: true, currentWindow: true }, (tabs) => {
+      const url = tabs[0]?.url || '';
+      const onListing = url.includes('zillow.com/apartments/') ||
+                        url.includes('zillow.com/homedetails/') ||
+                        url.includes('zillow.com/b/') ||
+                        isAptComListing(url);
 
-      // Check if user is on a Zillow listing page
-      chrome.tabs.query({ active: true, currentWindow: true }, (tabs) => {
-        const url = tabs[0]?.url || '';
-        const onZillow = url.includes('zillow.com/apartments/') ||
-                         url.includes('zillow.com/homedetails/') ||
-                         url.includes('zillow.com/b/') ||
-                         isAptComListing(url);
+      if (!onListing) { showState('no-page'); return; }
 
-        if (!onZillow) {
-          showState('no-page');
-          return;
-        }
+      const key = rentKeyForUrl(url);
+      chrome.storage.local.get(key, (result) => {
+        const data = result[key];
 
-        // Reject stale data from a previous page (different site OR different listing).
+        // Reject stale data from a different listing on the same site.
         const getPath = (u) => { try { return new URL(u).pathname; } catch(_) { return null; } };
         const dataPath = data?.url ? getPath(data.url) : null;
         const tabPath  = getPath(url);
@@ -42,11 +45,10 @@
 
         if (!data || isStale) {
           showState('loading');
-          // Retry once after 1.5s — content.js may still be extracting
           setTimeout(() => {
-            chrome.storage.local.get('rent_current', (r2) => {
-              if (r2['rent_current']) renderCurrentListing(r2['rent_current']);
-              else showState('no-page');
+            chrome.storage.local.get(key, (r2) => {
+              if (r2[key]) renderCurrentListing(r2[key]);
+              else showState('no-data');
             });
           }, 1500);
           return;
@@ -71,7 +73,7 @@
     addressEl.textContent = addrParts.length ? addrParts.join(', ') : `ZIP ${data.zipCode}`;
 
     const br      = parseInt(data.beds ?? 0, 10);
-    const brLabel = BR_LABELS[br] || `${br}BR`;
+    const brLabel = data.isBuilding ? 'Building' : (BR_LABELS[br] || `${br}BR`);
     const price   = data.price ? fmtPrice(data.price) + '/mo' : '—';
     metaEl.innerHTML =
       `<span class="price">${esc(price)}</span>` +
@@ -151,7 +153,7 @@
       for (const plan of plans) {
         const brLabel  = BR_LABELS[Math.min(plan.beds, 4)] || `${plan.beds}BR`;
         const priceStr = plan.maxPrice > plan.minPrice
-          ? `${fmtPrice(plan.minPrice)}–${fmtPrice(plan.maxPrice)}`
+          ? `${fmtPrice(plan.minPrice)}+`
           : fmtPrice(plan.minPrice);
         let diffStr = '', diffCls = '';
         if (plan.diffPct != null) {
@@ -168,7 +170,9 @@
             <span style="font-size:12px">${hcvIcon}</span>
           </div>`;
       }
-      document.getElementById('fmr-table').innerHTML = tableHtml;
+      const tbl = document.getElementById('fmr-table');
+      tbl.classList.add('building-plans-mode');
+      tbl.innerHTML = tableHtml;
       // Hide single-unit diff badge + fraud signal for buildings
       hide('diff-badge');
       hide('fraud-signal');
@@ -201,7 +205,7 @@
 
     // ── Single unit: standard FMR table + diff badge + HCV card ──────────────
     const fmr = data.fmr || buildFmrFromValue(data.fmrValue, brCapped);
-    renderFmrTable('fmr-table', fmr, brCapped);
+    renderFmrTable('fmr-table', fmr, data.isBuilding ? -1 : brCapped);
 
     // Diff badge
     const diffEl = document.getElementById('diff-badge');
@@ -419,9 +423,13 @@
   // ── Footer ─────────────────────────────────────────────────────────────────
 
   function setupFooter() {
-    document.getElementById('footer-link').addEventListener('click', (e) => {
+    document.getElementById('footer-about').addEventListener('click', (e) => {
       e.preventDefault();
       chrome.tabs.create({ url: chrome.runtime.getURL('about.html') });
+    });
+    document.getElementById('footer-privacy').addEventListener('click', (e) => {
+      e.preventDefault();
+      chrome.tabs.create({ url: chrome.runtime.getURL('privacy.html') });
     });
   }
 
@@ -447,7 +455,7 @@
 
   function showState(state) {
     hide('current-section');
-    const states = ['no-page', 'loading'];
+    const states = ['no-page', 'no-data', 'loading'];
     for (const s of states) {
       const el = document.getElementById(`state-${s}`);
       if (el) el.classList.toggle('hidden', s !== state);

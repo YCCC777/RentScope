@@ -8,6 +8,9 @@
   // Incremented on every navigation — lets pending retry loops detect they're stale.
   let activeRunId = 0;
 
+  // Hostname-scoped storage key prevents cross-site popup contamination.
+  const RENT_KEY = location.hostname.includes('zillow.com') ? 'rent_zillow' : 'rent_apartments';
+
   // Start watching immediately; only run extraction on listing pages
   watchForNavigation();
   if (isListingPage()) run(activeRunId);
@@ -53,8 +56,6 @@
   function attempt() {
     const listing = window.__extractListing?.();
     if (!listing) return false; // extractor not ready — retry
-    console.log('[RS]', `src=${listing.source} beds=${listing.beds} zip=${listing.zipCode} addr=${listing.address}`);
-
     // Non-rental page: stop retrying, don't show overlay
     if (listing.homeStatus && !listing.homeStatus.toUpperCase().includes('RENT')) return true;
     if (!listing.zipCode || !listing.price) return false;
@@ -66,7 +67,7 @@
     // Persist for popup (use local — session storage is not shared between
     // content scripts and popup in Chrome MV3)
     chrome.storage.local.set({
-      rent_current: { ...listing, url: location.href, extractedAt: Date.now() },
+      [RENT_KEY]: { ...listing, url: location.href, extractedAt: Date.now() },
     });
 
     // Ask background for FMR data
@@ -116,7 +117,7 @@
     const hcvCap         = officialHcvCap || (fmrValue ? Math.round(fmrValue * 1.10) : null);
 
     chrome.storage.local.set({
-      rent_current: {
+      [RENT_KEY]: {
         ...listing,
         url:          location.href,
         extractedAt:  Date.now(),
@@ -156,19 +157,23 @@
       if (location.href === lastUrl) return;
       // Snapshot gdp.building fingerprint before Zillow updates __NEXT_DATA__.
       // Must be called first — at this moment the departing page's gdp is still live.
-      console.log('[RS-DBG] URL changed:', location.href);
       window.__rsSnapshotGdp?.();
       lastUrl = location.href;
 
       const myId = ++activeRunId; // capture NOW — before the 600ms delay
       removeOverlay();
       clearBadge();
-      chrome.storage.local.remove('rent_current');
+      chrome.storage.local.remove(RENT_KEY);
 
       if (isListingPage()) {
         // Give Zillow ~600ms to update __NEXT_DATA__ / DOM before extracting.
         // Only start if no newer navigation happened within those 600ms.
         setTimeout(() => { if (activeRunId === myId) run(myId); }, 600);
+      } else {
+        // Landed on a non-listing page (e.g. search results).
+        // At T=800ms window.__NEXT_DATA__ is stable — cache listResults for use
+        // when the user clicks into a building whose gdp.building may be stale.
+        setTimeout(() => { if (activeRunId === myId) window.__rsCacheSearchResults?.(); }, 800);
       }
     });
 
@@ -275,7 +280,7 @@
     .plans-title { font-size: 11px; color: #94A3B8; margin-bottom: 5px; }
     .plans-wrap { margin-bottom: 8px; }
     .plan-row {
-      display: grid; grid-template-columns: 44px 1fr 46px 16px;
+      display: grid; grid-template-columns: 44px 1fr auto 16px;
       gap: 4px; align-items: center; padding: 4px 0;
       border-bottom: 1px solid rgba(148,163,184,0.07);
     }
@@ -364,7 +369,7 @@
       const fmrCells = [0, 1, 2, 3, 4].map(n => {
         const val = fmr?.[String(n)];
         if (!val) return '';
-        const active = n === brCapped;
+        const active = !isBuilding && (n === brCapped);
         return `<span class="fmr-cell${active ? ' active' : ''}">${BR_LABELS[n]} ${fmtPrice(val)}</span>`;
       }).join('');
 
@@ -395,7 +400,7 @@
       }
 
       let hcvHtml = '';
-      if (fmrValue) {
+      if (fmrValue && !isBuilding) {
         const officialCap = hcvArr?.[brCapped] ?? null;
         const cap         = officialCap || Math.round(fmrValue * 1.10);
         const capLabel    = officialCap ? 'official HUD standard' : 'estimated';

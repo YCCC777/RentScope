@@ -14,19 +14,19 @@
     <section id="hero">
       <div class="hero-logo"><img src="imag/RentScope_logo.png" alt="RentScope" width="110" height="110" style="border-radius:22px;" onerror="this.style.display='none'"></div>
       <h1 class="hero-title">RentScope</h1>
-      <p class="hero-tagline">Is your rent fair? See HUD Fair Market Rents right on Zillow.<br>Know if a listing is over-priced — and if Section 8 vouchers apply.</p>
+      <p class="hero-tagline">Is your rent fair? See HUD Fair Market Rents on Zillow and Apartments.com.<br>Know instantly if a listing is overpriced — and whether Section 8 vouchers apply.</p>
     </section>
 
     <!-- Features -->
     <section class="content-section">
       <h2 class="section-heading">What RentScope does</h2>
       <div class="feature-grid">
-        <div class="feature-card"><span class="fc-icon">📊</span><span class="fc-text">HUD Fair Market Rents overlay on Zillow</span></div>
+        <div class="feature-card"><span class="fc-icon">📊</span><span class="fc-text">HUD Fair Market Rents overlay on Zillow &amp; Apartments.com</span></div>
         <div class="feature-card"><span class="fc-icon">🏠</span><span class="fc-text">Studio through 4BR FMR table per listing</span></div>
         <div class="feature-card"><span class="fc-icon">📍</span><span class="fc-text">ZIP-level precision (38,000+ ZIPs)</span></div>
         <div class="feature-card"><span class="fc-icon">🎫</span><span class="fc-text">Section 8 HCV payment standard check</span></div>
         <div class="feature-card"><span class="fc-icon">⚠️</span><span class="fc-text">Market-relative fraud signal</span></div>
-        <div class="feature-card"><span class="fc-icon">🔍</span><span class="fc-text">Manual ZIP code lookup</span></div>
+        <div class="feature-card"><span class="fc-icon">🔍</span><span class="fc-text">Manual ZIP code lookup for any US ZIP</span></div>
       </div>
     </section>
 
@@ -34,10 +34,11 @@
     <section class="content-section">
       <h2 class="section-heading">How to use</h2>
       <ol class="usage-list">
-        <li>Go to <strong>zillow.com</strong> and open a rental listing</li>
+        <li>Go to <strong>zillow.com</strong> or <strong>apartments.com</strong> and open a rental listing</li>
         <li>RentScope automatically shows an <strong>FMR overlay</strong> on the listing page</li>
-        <li>The overlay shows the <strong>full FMR table</strong> (Studio–4BR) and highlights your unit size</li>
+        <li>The overlay shows the <strong>full FMR table</strong> (Studio–4BR) — your unit size is highlighted</li>
         <li>See the <strong>% above or below FMR</strong> at a glance — green means fair, red means overpriced</li>
+        <li>Multi-unit buildings show a <strong>per floor plan breakdown</strong> with individual diff% for each unit type</li>
         <li>Check <strong>Section 8 HCV eligibility</strong> — whether the listing is within payment standard limits</li>
         <li>Use the popup's <strong>ZIP lookup</strong> to check any area's FMR without opening a listing</li>
       </ol>
@@ -101,6 +102,17 @@
       <h2 class="section-heading">Changelog</h2>
       <div class="changelog">
         <div class="cl-item">
+          <span class="cl-ver">v1.1</span>
+          <div class="cl-body">
+            <div class="cl-title">Apartments.com support</div>
+            <ul class="cl-list">
+              <li>HUD FMR overlay on Apartments.com rental listings</li>
+              <li>Multi-unit buildings: per floor plan breakdown (Studio / 1BR / 2BR …) with individual diff%</li>
+              <li>Photo verification via Bing Image Search on Apartments.com</li>
+            </ul>
+          </div>
+        </div>
+        <div class="cl-item">
           <span class="cl-ver">v1.0</span>
           <div class="cl-body">
             <div class="cl-title">Initial Release — Zillow support</div>
@@ -121,7 +133,7 @@
 
     <footer id="about-footer">
       <button id="btn-close" class="close-btn">Close</button>
-      <span class="footer-copy">RentScope v1.0.0 · by Risa Studio</span>
+      <span class="footer-copy">RentScope v1.2.0 · by Risa Studio</span>
       <a class="footer-privacy" id="privacy-link" href="#">Privacy Policy</a>
     </footer>
 

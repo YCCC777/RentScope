@@ -6,6 +6,10 @@
 //   string    = bestMatchedUnit.hdpUrl of the building shown before nav
 // Set by window.__rsSnapshotGdp(), called from content.js on every URL change.
 let _preNavBmuHdpUrl; // eslint-disable-line prefer-const
+// Proactively cached listResults — populated 800ms after landing on a search page.
+// Zillow clears searchPageState from window.__NEXT_DATA__ before any SPA-nav hook
+// fires; reading at T=800ms (while idle on search) is the only reliable capture point.
+let _cachedListResults = null;
 // Extracts rental listing data from Zillow.
 //
 // Zillow has two URL patterns:
@@ -45,11 +49,22 @@ function extractZillow() {
 // listResults. If no signal is available → assume fresh to avoid infinite retry.
 function isBuildingGdpFresh(gdp) {
   const urlId = location.pathname.split('/').filter(Boolean).at(-1);
-  console.log('[RS-DBG] isBuildingGdpFresh: urlId=', urlId,
-    '| bmuHouseNum=', gdp.bmuHouseNum,
-    '| bmuHdpUrl=', gdp.bmuHdpUrl,
-    '| preNav=', _preNavBmuHdpUrl,
-    '| zip=', gdp.zipCode);
+
+  // ── Bridge live slug check ────────────────────────────────────────────────
+  // When zillow_bridge.js is active, readPageVar returns live window.__NEXT_DATA__
+  // (updated by Zillow after each SPA nav). Its query.slug is authoritative:
+  //   - contains urlId → live ND is for this page → data is fresh
+  //   - non-empty but missing urlId → live ND is still stale → data is stale
+  //   - absent → bridge not ready yet → fall through to static tag checks
+  const liveNd = readPageVar('window.__NEXT_DATA__');
+  if (liveNd) {
+    const liveSlug = liveNd?.query?.slug;
+    if (Array.isArray(liveSlug) && liveSlug.length > 0) {
+      return liveSlug.includes(urlId);
+    }
+    // query.slug absent in live ND (some URL patterns don't populate it) →
+    // fall through to static tag / house-number checks below.
+  }
 
   // ── Primary: house-number comparison via bestMatchedUnit.hdpUrl ───────────
   // bestMatchedUnit.hdpUrl is a /homedetails/ URL whose slug encodes the unit's
@@ -65,9 +80,18 @@ function isBuildingGdpFresh(gdp) {
   if (gdp.bmuHouseNum) {
     const urlHouseNum = urlId.match(/^(\d+)-/)?.[1] || null;
     if (urlHouseNum) {
-      return urlHouseNum === gdp.bmuHouseNum; // address-slug URL: exact house-number check
+      return urlHouseNum === gdp.bmuHouseNum; // last-segment address-slug check
     }
-    // name-slug or pure-ID URL → fall through to tag/listResults checks below
+    // Pure-ID last segment — also check the building-name segment (2nd to last).
+    // URL: /apartments/area/6101-compton-ave-(1448-e-61st)/CjhRTK/
+    //       building-name segment ──────────────────────────^
+    const segs = location.pathname.split('/').filter(Boolean);
+    const buildingSlug = segs.length >= 2 ? segs[segs.length - 2] : '';
+    const slugHouseNum = buildingSlug.match(/^(\d+)-/)?.[1] || null;
+    if (slugHouseNum) {
+      return slugHouseNum === gdp.bmuHouseNum; // building-name segment house-number check
+    }
+    // name-slug with no leading digit → fall through to tag/listResults checks below
   }
 
   // ── Fallback 1: URL area-segment ZIP mismatch → definitely stale ──────────
@@ -95,7 +119,6 @@ function isBuildingGdpFresh(gdp) {
     const slugArr = staticNd?.query?.slug;
     if (Array.isArray(slugArr) && slugArr.length > 0) {
       const found = slugArr.includes(urlId);
-      console.log('[RS-DBG] query.slug=', slugArr, '| urlId in slug:', found);
       if (found)  return true;  // static tag was loaded FOR this building → fresh
       return false;             // static tag was for a different building → stale
     }
@@ -112,11 +135,9 @@ function isBuildingGdpFresh(gdp) {
       if (sbHouseNum && gdp.bmuHouseNum) {
         const sz = String(sb.zipcode || '').trim().padStart(5, '0');
         if (sbHouseNum !== gdp.bmuHouseNum || sz !== gdp.zipCode) {
-          console.log('[RS-DBG] Fallback2a: static bldg mismatch → STALE');
           return false;
         }
         // match — but urlHouseNum is null (name-slug), can't confirm current URL → fall through
-        console.log('[RS-DBG] Fallback2a: houseNum/zip match but name-slug → fall through');
       } else {
         const sz = String(sb.zipcode || '').trim().padStart(5, '0');
         if (sz && gdp.zipCode && sz !== gdp.zipCode) return false;
@@ -165,19 +186,9 @@ function isBuildingGdpFresh(gdp) {
   //               Redux may hold stale building data → retry.
   //   equal     → gdp.building unchanged since URL change → stale.
   //   not equal → gdp.building was updated by Zillow → fresh.
-  if (_preNavBmuHdpUrl === undefined) {
-    console.log('[RS-DBG] isBuildingGdpFresh: preNav=undefined → FRESH');
-    return true;
-  }
-  if (_preNavBmuHdpUrl === null) {
-    console.log('[RS-DBG] isBuildingGdpFresh: preNav=null (from search) → STALE');
-    return false;
-  }
-  if (gdp.bmuHdpUrl && gdp.bmuHdpUrl === _preNavBmuHdpUrl) {
-    console.log('[RS-DBG] isBuildingGdpFresh: bmuHdpUrl unchanged → STALE');
-    return false;
-  }
-  console.log('[RS-DBG] isBuildingGdpFresh: bmuHdpUrl changed → FRESH');
+  if (_preNavBmuHdpUrl === undefined) return true;
+  if (_preNavBmuHdpUrl === null) return false;
+  if (gdp.bmuHdpUrl && gdp.bmuHdpUrl === _preNavBmuHdpUrl) return false;
   return true;
 }
 
@@ -186,32 +197,39 @@ function extractApartmentsPanel() {
   // Zillow navigates here (not /homedetails/) when clicking a unit within a building panel.
   const zpidM  = location.pathname.match(/\/(\d+)_zpid/);
   const urlZpid = zpidM?.[1] || null;
-  console.log('[RS-DBG] extractApartmentsPanel: urlZpid=', urlZpid, '| path=', location.pathname);
-
   // L1 (building-level only): listResults — URL-ID match is always fresh.
   // Try this BEFORE gdp.building for building-level URLs because gdp.building
   // persists from a prior building navigation and is often stale. listResults
   // is matched by the current URL's last path segment → always the right building.
   if (!urlZpid) {
     const listHit = extractFromListResults();
-    console.log('[RS-DBG] listResults hit:', listHit ? `zip=${listHit.zipCode} price=${listHit.price}` : 'null');
     if (listHit) return listHit;
   }
 
-  // L0: gdp.building — pass URL zpid so we look up the exact unit, not bestMatchedUnit.
-  // If urlZpid is provided but unit not found in floor plans (stale/different building),
-  // extractFromGdpBuilding returns null and we fall through to meta-based sources.
   const gdp = extractFromGdpBuilding(urlZpid || undefined);
-  console.log('[RS-DBG] extractFromGdpBuilding:', gdp ? `zip=${gdp.zipCode} price=${gdp.price} bmuHdpUrl=${gdp.bmuHdpUrl}` : 'null');
   if (gdp) {
     if (!urlZpid) {
-      // listResults already tried above and returned null (building not in search results).
-      // Verify gdp is for this building before returning it — gdp.building can be stale
-      // from a prior navigation. isBuildingGdpFresh() uses house-number from
-      // bestMatchedUnit.hdpUrl vs current URL slug, plus tag/listResults cross-checks.
       const fresh = isBuildingGdpFresh(gdp);
-      console.log('[RS-DBG] isBuildingGdpFresh result:', fresh);
-      if (!fresh) return null; // stale — retry
+      if (!fresh) {
+        // gdp.building is stale (from a prior navigation). listResults unavailable.
+        // Last-resort: look in the stale building's comps.compBuildings — Zillow populates
+        // this with nearby buildings. If the current URL's building appears there, we can
+        // extract its price/beds from the comp card. ZIP is borrowed from the stale
+        // building (nearby buildings share the same ZIP code in the vast majority of cases).
+        const compHit = extractFromCompBuildings(gdp.zipCode);
+        if (compHit) return compHit;
+        const metaHit = extractHomeDetailsMultiSource(gdp.zipCode);
+        if (metaHit) return { ...metaHit, source: 'meta_stale_zip' };
+        // No reliable data source available:
+        // - compBuildings only covers ~8 nearby buildings from the stale building
+        // - DOM body text in panel mode contains the previous panel's content AND
+        //   all search result tiles — reading price/beds from it gives wrong data
+        //   for any building not in the stale building's immediate neighborhood,
+        //   and the stale ZIP would also be wrong for buildings in other areas
+        // Return null so the retry loop continues; if no fresh data arrives within
+        // 12s the overlay simply won't show (preferable to wrong data).
+        return null;
+      }
     }
     return gdp;
   }
@@ -253,15 +271,13 @@ function extractApartmentsPanel() {
 // (e.g. window.__NEXT_DATA__). We inject a tiny inline script that copies the
 // value to a DOM attribute so our isolated-world script can read it.
 function readPageVar(varPath) {
+  if (varPath !== 'window.__NEXT_DATA__') return null;
   try {
-    const attr = 'data-rentscope-tmp';
-    const s = document.createElement('script');
-    s.textContent = `document.documentElement.setAttribute(
-      '${attr}', JSON.stringify(${varPath} || null));`;
-    (document.head || document.documentElement).appendChild(s);
-    s.remove();
-    const raw = document.documentElement.getAttribute(attr);
-    document.documentElement.removeAttribute(attr);
+    // zillow_bridge.js (MAIN world) listens for 'rs-sync-nd' and writes a slim copy of
+    // window.__NEXT_DATA__ to data-rs-nd. dispatchEvent is synchronous, so the attribute
+    // is populated by the time the next line runs.
+    document.dispatchEvent(new Event('rs-sync-nd'));
+    const raw = document.documentElement.getAttribute('data-rs-nd');
     return raw ? JSON.parse(raw) : null;
   } catch (_) { return null; }
 }
@@ -309,25 +325,8 @@ function extractFromGdpBuilding(overrideZpid) {
       ndAsPath
         ? ndAsPath.replace(/\/$/, '') === curPath.replace(/\/$/, '')
         : null; // null = asPath absent — can't determine
-    console.log('[RS-DBG] extractFromGdpBuilding: asPath=', ndAsPath || '(none)',
-      '| match=', asPathMatch, '| gdpB=', b ? 'found' : 'null');
-
-    if (asPathMatch === false) {
-      // __NEXT_DATA__ is for a different URL — the entire Redux state inside it
-      // (including gdp.building) is from the previous page. Returning null forces
-      // a retry and prevents stale data from ever reaching isBuildingGdpFresh().
-      console.log('[RS-DBG] asPath mismatch → discarding, returning null (will retry)');
-      return null;
-    }
-
-    if (!b && asPathMatch === true) {
-      // __NEXT_DATA__ is current (asPath matches) but gdp.building is not yet
-      // populated — Zillow is still doing CSR / API fetch. Do NOT fall back to
-      // the Redux store: it contains the previous building's data and would cause
-      // stale data to appear. Return null → retry loop waits for CSR to finish.
-      console.log('[RS-DBG] asPath matches but gdp.building null → waiting for CSR');
-      return null;
-    }
+    if (asPathMatch === false) return null;
+    if (!b && asPathMatch === true) return null;
 
     // asPathMatch === null (asPath absent — search page or older Zillow build):
     // fall through to Redux for backward compat.
@@ -474,21 +473,81 @@ function extractFromGdpBuilding(overrideZpid) {
   }
 }
 
+// ── L1b: comps.compBuildings fallback ────────────────────────────────────────
+// When gdp.building is stale and listResults is unavailable (bookmark → search →
+// click nearby building), the stale gdp.building still carries comps.compBuildings
+// — up to ~8 nearby buildings with price/beds data. If the current URL's building
+// ID appears in that list, we can extract its data from there.
+//
+// ZIP is not present in the BuildingCard schema — we use the stale building's ZIP
+// as an approximation. compBuildings are nearby buildings so the same ZIP is very
+// likely correct (Zillow places them within the same neighborhood).
+function extractFromCompBuildings(staleZipCode) {
+  try {
+    if (!staleZipCode || staleZipCode === '00000') return null;
+    const urlId = location.pathname.split('/').filter(Boolean).at(-1);
+
+    const liveNd = readPageVar('window.__NEXT_DATA__');
+    const nd = liveNd
+      || JSON.parse(document.getElementById('__NEXT_DATA__')?.textContent || '{}');
+    const comps = nd?.props?.pageProps?.componentProps
+                    ?.initialReduxState?.gdp?.building?.comps?.compBuildings;
+    if (!Array.isArray(comps)) return null;
+
+    const hit = comps.find(c =>
+      typeof c.bdpLink === 'string' && c.bdpLink.includes(`/${urlId}/`)
+    );
+    if (!hit) return null;
+
+    const price = hit.minPrice || 0;
+    const beds  = hit.minBeds  != null ? parseBeds(hit.minBeds) : null;
+    if (!price || price < 100 || beds == null) return null;
+
+    // Build per-BR floor plans from bedroomGroups for the overlay table
+    let buildingPlans = null;
+    const groups = Array.isArray(hit.bedroomGroups) ? hit.bedroomGroups : [];
+    if (groups.length > 1) {
+      const plans = groups
+        .map(g => ({
+          beds:     parseBeds(g.beds) ?? 0,
+          minPrice: toNumber(g.price),
+          maxPrice: toNumber(g.price),
+        }))
+        .filter(p => p.minPrice > 100)
+        .sort((a, b) => a.beds - b.beds);
+      if (plans.length > 1) buildingPlans = plans;
+    }
+
+    return {
+      price,
+      beds,
+      zipCode:    staleZipCode,
+      address:    hit.buildingAddress || null,
+      city:       null,
+      state:      hit.state || null,
+      homeStatus: 'FOR_RENT',
+      isBuilding: groups.length > 1,
+      buildingPlans,
+      source:     'comp_building',
+    };
+  } catch (_) { return null; }
+}
+
 // ── L1: legacy listResults (pre-2026 Zillow structure) ────────────────────────
 
 function extractFromListResults() {
   try {
     // Try live window.__NEXT_DATA__ first (updated by Next.js on every SPA nav).
-    // The live variable carries searchPageState from the search context the user
-    // navigated from — even on /b/ and /apartments/ pages. This lets us find the
-    // listing in search results regardless of which page triggered the navigation.
     // Falls back to the static script tag (initial page-load data).
+    // Last resort: _cachedListResults — populated proactively at T=800ms while the
+    // user was idle on the search page (before clicking into a building).
     const liveNd = readPageVar('window.__NEXT_DATA__');
     const nd = liveNd
       || JSON.parse(document.getElementById('__NEXT_DATA__')?.textContent || '{}');
 
     const results =
-      nd?.props?.pageProps?.searchPageState?.cat1?.searchResults?.listResults;
+      nd?.props?.pageProps?.searchPageState?.cat1?.searchResults?.listResults
+      || _cachedListResults;
     if (!Array.isArray(results)) return null;
 
     const urlId = location.pathname.split('/').filter(Boolean).at(-1);
@@ -1091,11 +1150,30 @@ window.__rsSnapshotGdp = function () {
     const liveNd = readPageVar('window.__NEXT_DATA__');
     const b = liveNd?.props?.pageProps?.componentProps?.initialReduxState?.gdp?.building;
     _preNavBmuHdpUrl = b?.bestMatchedUnit?.hdpUrl || null;
-    console.log('[RS-DBG] snapshotGdp →', _preNavBmuHdpUrl, '| url:', location.pathname);
+    // Capture listResults from the departing page before React replaces window.__NEXT_DATA__.
+    // This fires while __NEXT_DATA__ still holds the previous page's data, so we reliably
+    // grab search results even when the user navigates away in < 800ms (before the
+    // __rsCacheSearchResults timer fires).
+    const listR = liveNd?.props?.pageProps?.searchPageState?.cat1?.searchResults?.listResults;
+    if (Array.isArray(listR) && listR.length > 0) _cachedListResults = listR;
   } catch (_) {
     _preNavBmuHdpUrl = null;
-    console.log('[RS-DBG] snapshotGdp error → null');
   }
+};
+
+// Called by content.js 800ms after navigating to a search/non-listing page.
+// At T=800ms window.__NEXT_DATA__ is stable with the search page's state, so
+// listResults is readable. This is the only reliable window — Zillow clears
+// searchPageState from __NEXT_DATA__ before any SPA-nav JS hook fires.
+window.__rsCacheSearchResults = function () {
+  try {
+    const liveNd = readPageVar('window.__NEXT_DATA__');
+    const listR = liveNd?.props?.pageProps?.searchPageState?.cat1?.searchResults?.listResults;
+    if (Array.isArray(listR) && listR.length > 0) {
+      _cachedListResults = listR;
+    }
+  } catch (_) {}
+
 };
 
 // Register as shared extractor name used by content.js

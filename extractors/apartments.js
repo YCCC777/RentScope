@@ -15,15 +15,28 @@
 
 function extractApartments() {
   const fromND = extractAptFromNextData();
-  if (fromND) return fromND;
+  if (fromND) return attachPlans(fromND);
 
   const fromJLD = extractAptFromJsonLd();
-  if (fromJLD) return fromJLD;
+  if (fromJLD) return attachPlans(fromJLD);
 
   const fromMeta = extractAptFromMeta();
-  if (fromMeta) return fromMeta;
+  if (fromMeta) return attachPlans(fromMeta);
 
-  return extractAptFromDOM();
+  return attachPlans(extractAptFromDOM());
+}
+
+function attachPlans(result) {
+  if (!result) return null;
+  if (result.isBuilding && !result.buildingPlans) {
+    const plans = extractAptBuildingPlans();
+    if (plans) {
+      result.buildingPlans = plans;
+      // Use cheapest plan's minPrice as the building price
+      result.price = plans[0].minPrice;
+    }
+  }
+  return result;
 }
 
 // ── L0: __NEXT_DATA__ recursive scan ─────────────────────────────────────────
@@ -86,7 +99,8 @@ function findAptListing(obj, depth) {
 // ── L1: JSON-LD ───────────────────────────────────────────────────────────────
 // Apartments.com typically has:
 //   • ApartmentComplex — reliable address + ZIP
-//   • Apartment / Product — individual unit price + beds
+//   • Apartment / Product (often @type array) — individual unit price + beds
+//   • Some pages use @graph with mainEntity.address for ZIP
 
 function extractAptFromJsonLd() {
   // Flatten all JSON-LD blocks (handle single obj, array, @graph)
@@ -101,12 +115,33 @@ function extractAptFromJsonLd() {
   }
   if (blocks.length === 0) return null;
 
+  // @type may be a string or an array — normalize to lowercase string array
+  function typeList(b) {
+    const t = b['@type'];
+    if (!t) return [];
+    return (Array.isArray(t) ? t : [t]).map(s => String(s).toLowerCase());
+  }
+  function isType(b, ...types) {
+    const tl = typeList(b);
+    return types.some(t => tl.includes(t));
+  }
+
+  // Parse beds from free-text description: "4 SPACIOUS BEDROOMS", "1 bedroom", "Studio"
+  function bedsFromText(text) {
+    if (!text) return null;
+    const s = String(text);
+    if (/\bstudio\b/i.test(s)) return 0;
+    // "4 SPACIOUS BEDROOMS" — allow up to 2 filler words between number and bedroom(s)
+    const m = s.match(/\b(\d+)\s+(?:\w+\s+){0,2}bedrooms?\b/i)
+           || s.match(/\b(\d+)\s*(?:bed|br)\b/i);
+    return m ? parseInt(m[1], 10) : null;
+  }
+
   // Collect ApartmentComplex address for fallback
   let complexAddr = null;
   for (const b of blocks) {
-    const type = String(b['@type'] || '').toLowerCase();
-    if (['apartmentcomplex', 'localbusiness', 'realestatecondominiumunit',
-         'residentialbuilding'].includes(type) || (type === 'place' && b.address)) {
+    if (isType(b, 'apartmentcomplex', 'localbusiness', 'realestatecondominiumunit',
+               'residentialbuilding') || (isType(b, 'place') && b.address)) {
       const zip = jldZip(b.address || b);
       if (zip) {
         complexAddr = {
@@ -120,43 +155,74 @@ function extractAptFromJsonLd() {
     }
   }
 
-  // Look for specific unit data (Apartment / Product)
+  // Look for specific unit data (Apartment / Product / etc.)
+  let buildingCandidate = null;  // price+zip found but no beds — building fallback
   for (const b of blocks) {
-    const type = String(b['@type'] || '').toLowerCase();
-    if (['apartment', 'product', 'accommodation', 'residence',
-         'singlefamilyresidence', 'house', 'condominium', 'townhouse',
-         'apartmentunit'].includes(type)) {
-      const price = aptParsePrice(b.offers?.price || b.offers?.lowPrice || b.price);
-      const beds  = aptParseBeds(b.numberOfBedrooms || b.numberOfRooms || b.name);
-      const zip   = jldZip(b.address) || complexAddr?.zipCode;
+    if (!isType(b, 'apartment', 'product', 'accommodation', 'residence',
+                   'singlefamilyresidence', 'house', 'condominium', 'townhouse',
+                   'apartmentunit', 'realestalelisting', 'realestatelisting')) continue;
 
-      if (price > 100 && beds != null && zip) {
-        return {
-          price, beds, zipCode: zip,
-          address: b.address?.streetAddress || complexAddr?.address || null,
-          city:    b.address?.addressLocality || complexAddr?.city   || null,
-          state:   b.address?.addressRegion   || complexAddr?.state  || null,
-          homeStatus: 'FOR_RENT',
-          isBuilding: false,
-          source: 'jsonld',
-        };
-      }
+    const price = aptParsePrice(
+      b.offers?.price || b.offers?.lowPrice || b.price
+    );
+
+    // ZIP: own address → mainEntity.address → complexAddr
+    const addrSrc = b.address || b.mainEntity?.address;
+    const zip = jldZip(addrSrc) || complexAddr?.zipCode;
+
+    // Beds: structured fields → description free text
+    let beds = aptParseBeds(b.numberOfBedrooms ?? b.numberOfRooms);
+    if (beds == null) beds = bedsFromText(b.name);
+    if (beds == null) beds = bedsFromText(b.description);
+    // mainEntity may carry beds info
+    if (beds == null && b.mainEntity) {
+      beds = aptParseBeds(b.mainEntity.numberOfBedrooms ?? b.mainEntity.numberOfRooms);
+      if (beds == null) beds = bedsFromText(b.mainEntity.description);
     }
+
+    if (price > 100 && beds != null && zip) {
+      return {
+        price, beds, zipCode: zip,
+        address: addrSrc?.streetAddress || complexAddr?.address || null,
+        city:    addrSrc?.addressLocality || complexAddr?.city   || null,
+        state:   addrSrc?.addressRegion   || complexAddr?.state  || null,
+        homeStatus: 'FOR_RENT',
+        isBuilding: false,
+        source: 'jsonld',
+      };
+    }
+
+    // Price + zip but no beds → save as building candidate
+    if (price > 100 && zip && !buildingCandidate) {
+      buildingCandidate = { price, zip, addrSrc };
+    }
+  }
+
+  // No unit with beds — return as building if we have price + zip
+  if (buildingCandidate) {
+    const { price, zip, addrSrc } = buildingCandidate;
+    return {
+      price, beds: 0, zipCode: zip,
+      address: addrSrc?.streetAddress || complexAddr?.address || null,
+      city:    addrSrc?.addressLocality || complexAddr?.city   || null,
+      state:   addrSrc?.addressRegion   || complexAddr?.state  || null,
+      homeStatus: 'FOR_RENT',
+      isBuilding: true,
+      source: 'jsonld_building',
+    };
   }
 
   // Have address but no unit price — try priceRange or any offer price
   if (complexAddr) {
     for (const b of blocks) {
-      // priceRange: "$1,500 - $3,000"
+      // priceRange: "$1,500 - $3,000" — building-level data, mark as isBuilding
       if (b.priceRange) {
         const m = String(b.priceRange).match(/\$([\d,]+)/);
         if (m) {
           const price = parseInt(m[1].replace(/,/g, ''), 10);
           if (price > 100) {
-            const isRange = String(b.priceRange).includes('-') ||
-                            String(b.priceRange).includes('+');
             return { ...complexAddr, price, beds: 0,
-                     homeStatus: 'FOR_RENT', isBuilding: false,
+                     homeStatus: 'FOR_RENT', isBuilding: true,
                      source: 'jsonld_complex' };
           }
         }
@@ -165,7 +231,7 @@ function extractAptFromJsonLd() {
       const low = aptParsePrice(b.offers?.lowPrice || b.offers?.price);
       if (low > 100) {
         return { ...complexAddr, price: low, beds: 0,
-                 homeStatus: 'FOR_RENT', isBuilding: false,
+                 homeStatus: 'FOR_RENT', isBuilding: true,
                  source: 'jsonld_complex' };
       }
     }
@@ -194,18 +260,18 @@ function extractAptFromMeta() {
               || '';
   const combined = title + ' ' + desc;
 
-  // Price: "$1,500/mo" or "$1,500 - $3,000/mo"
-  const priceM = combined.match(/\$([\d,]+)\s*(?:\/\s*mo|per month)/i);
+  // Price: "$1,500/mo", "$1,500 - $3,000/mo", "from $4,500", "starting at $852"
+  const priceM = combined.match(/\$([\d,]+)\s*(?:\/\s*mo|per month)/i)
+              || combined.match(/\b(?:from|starting\s+at)\s+\$([\d,]+)/i);
   const price  = priceM ? parseInt(priceM[1].replace(/,/g, ''), 10) : null;
   const isRange = /\$([\d,]+)\s*[-–]\s*\$([\d,]+)/i.test(combined);
 
-  // Beds
+  // Beds — explicit count takes priority over "studio" keyword (building titles often
+  // mention "Studio, 1-4 Beds" even on non-studio unit pages)
   let beds = null;
-  if (/\bstudio\b/i.test(combined)) beds = 0;
-  else {
-    const bm = combined.match(/(\d+)\s*(?:bed|br)\b/i);
-    if (bm) beds = parseInt(bm[1], 10);
-  }
+  const bm = combined.match(/(\d+)\s*(?:bed|br)\b/i);
+  if (bm) beds = parseInt(bm[1], 10);
+  else if (/\bstudio\b/i.test(combined)) beds = 0;
 
   // ZIP
   const zipM = combined.match(/\b(\d{5})\b/);
@@ -220,14 +286,16 @@ function extractAptFromMeta() {
   const streetMeta = document.querySelector('meta[property="og:street-address"]')?.content;
   const zipFromStreet = streetMeta?.match(/\b(\d{5})\b/)?.[1];
 
-  if (price && price > 100 && beds != null && (zip || zipFromStreet)) {
+  if (price && price > 100 && (zip || zipFromStreet)) {
+    const hasUnit = beds != null;
     return {
-      price, beds,
+      price,
+      beds:      hasUnit ? beds : 0,
       zipCode:   zip || zipFromStreet,
       address:   streetMeta || null,
       city, state,
       homeStatus: 'FOR_RENT',
-      isBuilding: false,
+      isBuilding: !hasUnit,
       source: 'meta',
     };
   }
@@ -292,11 +360,9 @@ function extractAptFromDOM() {
   }
 
   if (beds == null) {
-    if (/\bstudio\b/i.test(bodyText)) beds = 0;
-    else {
-      const m = bodyText.match(/(\d+)\s*(?:bed|br)\b/i);
-      if (m) beds = parseInt(m[1], 10);
-    }
+    const m = bodyText.match(/(\d+)\s*(?:bed|br)\b/i);
+    if (m) beds = parseInt(m[1], 10);
+    else if (/\bstudio\b/i.test(bodyText)) beds = 0;
   }
 
   // ── ZIP ───────────────────────────────────────────────────────────────────
@@ -355,6 +421,60 @@ function aptParseBeds(v) {
   if (/studio/i.test(s)) return 0;
   const m = s.match(/^(\d+)/);
   return m ? parseInt(m[1], 10) : null;
+}
+
+// Parse bed count from Apartments.com floor plan labels: "Studio", "One Bedroom", "1 Bed", etc.
+function aptParseBedLabel(text) {
+  if (!text) return null;
+  const s = text.toLowerCase().trim();
+  if (/^studio/.test(s)) return 0;
+  const words = { one: 1, two: 2, three: 3, four: 4, five: 5 };
+  for (var w in words) {
+    if (s.startsWith(w + ' ')) return words[w];
+  }
+  const m = s.match(/^(\d+)\s*(?:bed|br)/);
+  return m ? parseInt(m[1], 10) : null;
+}
+
+// Extract per-unit floor plan data from Apartments.com pricingGrid DOM.
+// Returns array of { beds, minPrice, maxPrice } or null.
+function extractAptBuildingPlans() {
+  var items = document.querySelectorAll('[class*="pricingGridItem"]');
+  if (!items.length) return null;
+
+  var seen = {};
+  var plans = [];
+
+  for (var i = 0; i < items.length; i++) {
+    var item = items[i];
+
+    var bedEl   = item.querySelector('[class*="priceBedRange"],[class*="bedLabel"],[class*="modelName"]');
+    var bedText = bedEl ? bedEl.textContent.trim() : '';
+    var beds = aptParseBedLabel(bedText);
+    if (beds == null) {
+      // fallback: first line of item text
+      beds = aptParseBedLabel(item.textContent.trim().split(/\n/)[0]);
+    }
+    if (beds == null) continue;
+    if (seen[beds]) continue;
+    seen[beds] = true;
+
+    var priceEl   = item.querySelector('[class*="rentLabel"]');
+    var priceText = priceEl ? priceEl.textContent.trim() : item.textContent;
+    var prices = [];
+    var re = /\$([\d,]+)/g;
+    var pm;
+    while ((pm = re.exec(priceText)) !== null) {
+      prices.push(parseInt(pm[1].replace(/,/g, ''), 10));
+    }
+    var minPrice = prices[0];
+    var maxPrice = prices[1] || prices[0];
+    if (!minPrice || minPrice < 100) continue;
+
+    plans.push({ beds: beds, minPrice: minPrice, maxPrice: maxPrice });
+  }
+
+  return plans.length > 0 ? plans : null;
 }
 
 // Register as shared extractor name used by content.js
