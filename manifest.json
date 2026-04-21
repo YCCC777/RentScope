@@ -2,7 +2,7 @@
   "manifest_version": 3,
   "name": "RentScope",
   "version": "1.2.0",
-  "description": "Is your rent fair? Instantly compare any Zillow or Apartments.com listing against HUD Fair Market Rents and check Section 8 HCV eligibility.",
+  "description": "Is your rent fair? Compare Zillow & Apartments.com listings to HUD Fair Market Rents. Check pricing and Section 8 HCV eligibility.",
   "permissions": [
     "storage",
     "tabs"
